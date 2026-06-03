@@ -3,8 +3,22 @@ const path = require("path");
 const parseRequest = require("./parseRequest");
 const serveFile = require("./public/serveFile");
 
-function sendResponse(socket, statusCode, statusMessage, headers, body) {
+function sendResponse(
+  socket,
+  statusCode,
+  statusMessage,
+  headers,
+  body,
+  keepAlive = false,
+) {
   let response = `HTTP/1.1 ${statusCode} ${statusMessage}\r\n`;
+
+  if (keepAlive) {
+    response += "Connection: keep-alive\r\n";
+    response += "Keep-Alive: timeout=5, max=100\r\n";
+  } else {
+    response += "Connection: close\r\n";
+  }
 
   for (const [key, value] of Object.entries(headers)) {
     response += `${key}: ${value}\r\n`;
@@ -15,7 +29,10 @@ function sendResponse(socket, statusCode, statusMessage, headers, body) {
   // Write headers as text, then body as whatever it is (string or Buffer)
   socket.write(response);
   socket.write(body);
-  socket.end();
+  // Only end the socket if we're NOT keeping alive
+  if (!keepAlive) {
+    socket.end();
+  }
 }
 
 function handleRequest(socket, request) {
@@ -99,6 +116,7 @@ function handleRequest(socket, request) {
         "Content-Length": Buffer.byteLength(body),
       },
       body,
+      false,
     );
   }
 }
@@ -182,10 +200,14 @@ const server = net.createServer((socket) => {
     // We have the complete request — handle it and reset the buffer
     buffer = "";
 
+    // Check if the client wants to keep the connection alive
+    const keepAlive =
+      request.headers["connection"]?.toLowerCase() === "keep-alive";
+
     // Wrap handleRequest in try/catch
     // If anything inside throws, we send a 500 instead of crashing
     try {
-      handleRequest(socket, request);
+      handleRequest(socket, request, keepAlive);
     } catch (err) {
       console.error("Unhandled error:", err);
       const body = "Internal Server Error";

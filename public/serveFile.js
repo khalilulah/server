@@ -12,7 +12,7 @@ const mimeTypes = {
   ".txt": "text/plain",
 };
 
-function serveFile(socket, filePath, sendResponse) {
+function serveFile(socket, filePath, sendResponse, keepAlive = false) {
   // Get the file extension to determine Content-Type
   const ext = path.extname(filePath);
   const contentType = mimeTypes[ext] || "application/octet-stream";
@@ -44,6 +44,7 @@ function serveFile(socket, filePath, sendResponse) {
         "Content-Length": data.length,
       },
       data,
+      keepAlive,
     );
   });
 }
